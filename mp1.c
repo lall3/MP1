@@ -55,61 +55,57 @@ static struct PID_list pid_list;
 
 char * msg;
 
-//change
-void add_node_to_list(long PID) 
+
+static int lock =0; //acts as spin lock
+
+char k_buffer[2048];
+
+//file functions
+ssize_t file_write(struct file *file, char *buffer, size_t size, loff_t * data)
 {
-    struct PID_list *newNode;
-    newNode = kmalloc(sizeof(struct PID_list), GFP_KERNEL);
-    (*newNode).cpu_time=0;
-    (*newNode).PID=PID;          
-    while(list_mutex);//wait if mutex=1
-    list_mutex=1;//lock
-    list_add(&((*newNode)._head), &(pid_list._head));
-    list_mutex=0;//unlock
+    long curr_pid=0;
+
+    copy_from_user(k_buffer, buffer, count);
+    kstrtol(k_buffer, 0 , &curr_pid);
+
+    struct PID_list *temp;
+    temp = kmalloc(sizeof(PID_list), GFP_KERNEL );
+    (*temp).cpu_time= (*temp).pid=0;
+
+    while(lock);
+
+    lock=1;
+    list_add( &((*temp)._head) , &(pid_list._head) );
+    lock=0;
+
+    return count;
+
 }
-
-//added functions for read and write
-ssize_t file_write(struct file *file, char *buf, size_t count, loff_t * data) {
-   long user_PID;
-  copy_from_user(msg,buf,count); 
-  kstrtol(msg,0,&user_PID);
-  size_t num_byte_from_user = (size_t)count;
-  add_node_to_list(user_PID);
-  return count;
-   
-}
-
-
 
 ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 {
-   
-   int pos=0;
-  int len;
-  char *pid= (char*)kmalloc(count,GFP_KERNEL);
-  struct PID_list *process_entry;
+  while(lock);
+  lock =1;
 
-  if((int)*data >0){
-    kfree((void*)pid);
-    return 0;
+  int length, ctr;
+  ctr = length = 0;
+  struct PID_list * temp;
+
+  char * pid = kmalloc(count, GFP_KERNEL);
+
+  list_for_each_entry(temp, pid_list._head, _head)
+  {
+     length= sprintf(pid + ctr, "PID= %lu, CPU Time= %lu\n", temp->PID, temp->cpu_time  );
+     ctr += length;
   }
+  copy_to_user(buf, pid,ctr);
 
-  while(list_mutex);//wait if mutex=1
-  list_mutex=1;//lock
-  list_for_each_entry(process_entry, &pid_list._head, _head) {
-
-      len=sprintf(pid+pos,"PID= %lu, CPU_time=%lu \n", process_entry->PID, process_entry->cpu_time);
-      pos+= len;
-  }
-  list_mutex=0;
-  copy_to_user(buf,pid,pos);
   kfree((void*)pid);
-
-  *data +=pos;
-  
-return pos;
+  data += ctr;
+  lock=0;
 
 }
+
 
 
 //file system struct
