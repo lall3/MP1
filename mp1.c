@@ -59,7 +59,7 @@ char * msg;
 void add_node_to_list(long PID) 
 {
     struct process_list *newNode;
-    newNode = kmalloc(sizeof(struct process_list), GFP_KERNEL);
+    newNode = kmalloc(sizeof(struct PID_list), GFP_KERNEL);
     (*newNode).cpu_time=0;
     (*newNode).PID=PID;          
     while(list_mutex);//wait if mutex=1
@@ -87,7 +87,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
    int pos=0;
   int len;
   char *pid= (char*)kmalloc(count,GFP_KERNEL);
-  struct process_list *process_entry;
+  struct PID_list *process_entry;
 
   if((int)*data >0){
     kfree((void*)pid);
