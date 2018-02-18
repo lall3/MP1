@@ -61,14 +61,15 @@ static int lock =0; //acts as spin lock
 char k_buffer[2048];
 
 //file functions
-ssize_t file_write(struct file *file, char *buffer, size_t count, loff_t * data)
+static ssize_t file_write(struct file *file,const  char *buffer, size_t count, loff_t * data)
 {
     long curr_pid=0;
 
+struct PID_list *temp;
     copy_from_user(k_buffer, buffer, count);
     kstrtol(k_buffer, 0 , &curr_pid);
-
-    struct PID_list *temp;
+	printk(KERN_ALERT "WRITING");
+   // struct PID_list *temp;
     temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
     (*temp).cpu_time= (*temp).PID=0;
 
@@ -82,16 +83,19 @@ ssize_t file_write(struct file *file, char *buffer, size_t count, loff_t * data)
 
 }
 
-ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
+static ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 {
-  while(lock);
+	int length, ctr;
+	struct PID_list *temp;
+	char * pid;  
+while(lock);
   lock =1;
 
-  int length, ctr;
+  //int length, ctr;
   ctr = length = 0;
-  struct PID_list * temp;
+  //struct PID_list * temp;
 
-  char * pid = kmalloc(count, GFP_KERNEL);
+  pid = kmalloc(count, GFP_KERNEL);
 
   list_for_each_entry(temp, &pid_list._head, _head)
   {
@@ -104,6 +108,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
   data += ctr;
   lock=0;
 
+return count;
 }
 
 
@@ -121,7 +126,7 @@ static const struct file_operations mp1_file_ops = {
 #define DEBUG 1
 
 //functions for timer interupt handling
-void timer_function(void)
+static void timer_function( unsigned long grbg)
 {
    unsigned long unit_step = msecs_to_jiffies(5000);
    mod_timer(&_timer, jiffies + unit_step);
@@ -144,7 +149,7 @@ schedule_work(&update);
 void timer_init(void )
 {
    setup_timer(&_timer , timer_function ,0);
-   mod_timer(&_timer , jiffies + msecs_to_jiffies(5000) ); //might need to add jiffies
+   mod_timer(&_timer , jiffies + msecs_to_jiffies(500) ); //might need to add jiffies
 }
 //Timer event handler. Second half
 void mykmod_work_handler(struct work_struct *pwork)
@@ -191,8 +196,12 @@ int __init mp1_init(void)
 
    //time semantics
    //timer_init();
-   setup_timer(&_timer , timer_function ,0);
-   mod_timer(&_timer , jiffies + msecs_to_jiffies(5000) ); 
+  // setup_timer(&_timer , &timer_function ,0);
+	init_timer(&_timer);
+	_timer.data =0;
+	_timer.expires= jiffies + msecs_to_jiffies(5000);
+	_timer.function = timer_function;
+   mod_timer(&_timer , jiffies + msecs_to_jiffies(500) ); 
 
    
    
