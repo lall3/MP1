@@ -32,7 +32,12 @@ static struct workqueue_struct * _workqueue;
 static DECLARE_WORK(update, mykmod_work_handler);
 static struct work_struct update;
 
-static list_t list_pid;
+//static list_t list_pid;
+typedef struct list_t{
+   struct list_head node;
+   char * data;
+   void * voidP;
+} list_t;
 
 struct PID_list{
    struct list_head _head; 
@@ -60,7 +65,7 @@ ssize_t file_write(struct file *filp, char *buff, size_t len, loff_t *data) {
 
 
 
-ssize_t mp1_read(struct file *file, char __user * buffer, size_t count, loff_t * data)
+ssize_t file_read(struct file *file, char __user * buffer, size_t count, loff_t * data)
 {
    int copied;
    char * buf;
