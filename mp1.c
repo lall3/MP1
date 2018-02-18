@@ -54,30 +54,45 @@ static list_t pidList;
 static struct PID_list pid_list;
 
 //added functions for read and write
-ssize_t file_write(struct file *file, char __user *buffer, size_t count, loff_t * data) {
-   list_t *insert_node = (list_t*)kmalloc(sizeof(list_t), GFP_KERNEL);
-   char * buf = (char*)kmalloc(count, GFP_KERNEL);
-   ssize_t ret = copy_from_user(buf, buffer, count);
-   insert_node->data = buf;
-   list_add_tail(&(insert_node->node), &(pidList.node));
-   return ret;
+ssize_t file_write(struct file *file, char *buf, size_t count, loff_t * data) {
+   long user_PID;
+  copy_from_user(msg,buf,count); 
+  kstrtol(msg,0,&user_PID);
+  num_byte_from_user = (size_t)count;
+  add_node_to_list(user_PID);
+  return count;
    
 }
 
 
 
-ssize_t file_read(struct file *file, char __user * buffer, size_t count, loff_t * data)
+ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 {
-   int copied;
-   char * buf;
-   list_t *tmp = NULL;
-   buf = (char*) kcalloc( 1, count, GFP_KERNEL);
-   tmp = list_entry(&(pidList.node), list_t, node);
-   memcpy(buf, tmp->data, strlen(tmp->data));
-   copied = copy_to_user(buffer, buf, count);
-   kfree(buf);
-   return copied;
+   
+   int pos=0;
+  int len;
+  char *pid= (char*)kmalloc(count,GFP_KERNEL);
+  struct process_list *process_entry;
 
+  if((int)*offp >0){
+    kfree((void*)pid);
+    return 0;
+  }
+
+  while(list_mutex);//wait if mutex=1
+  list_mutex=1;//lock
+  list_for_each_entry(process_entry, &Head.link, link) {
+
+      len=sprintf(pid+pos,"PID= %lu, CPU_time=%lu \n", process_entry->PID, process_entry->cpu_time);
+      pos+= len;
+  }
+  list_mutex=0;
+  copy_to_user(buf,pid,pos);
+  kfree((void*)pid);
+
+  *offp +=pos;
+  
+return pos;
 
 }
 
@@ -164,7 +179,9 @@ int __init mp1_init(void)
    INIT_LIST_HEAD( &(pid_list)._head );
 
    //time semantics
-   timer_init();
+   //timer_init();
+   setup_timer(&_timer , timer_function ,0);
+   mod_timer(&_timer , jiffies + msecs_to_jiffies(5000) ); 
 
    
    
@@ -190,8 +207,8 @@ void __exit mp1_exit(void)
 
    del_timer(&_timer);
    //cleanup_list();
-   flush_workqueue(_workqueue);
-   destroy_workqueue(_workqueue);
+   //flush_workqueue(_workqueue);
+   //destroy_workqueue(_workqueue);
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
 }
 
