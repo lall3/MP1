@@ -129,10 +129,10 @@ static const struct file_operations mp1_file_ops = {
 static void timer_function( unsigned long grbg)
 {
    unsigned long unit_step = msecs_to_jiffies(5000);
-   mod_timer(&_timer, jiffies + unit_step);
   //schedule_work();
 
 schedule_work(&update);
+mod_timer(&_timer, jiffies + unit_step);
 /*
    if(!_workqueue)
       create_workqueue("_workqueue");
@@ -154,6 +154,7 @@ void timer_init(void )
 //Timer event handler. Second half
 void mykmod_work_handler(struct work_struct *pwork)
 {
+  /*
    struct PID_list* temp_Node=NULL;
     while(list_mutex);//wait if mutex=1
     list_mutex=1;//lock
@@ -166,6 +167,21 @@ void mykmod_work_handler(struct work_struct *pwork)
       }
     }
     list_mutex=0;//lock
+*/
+    struct PID_list *process_entry, *temp;
+  printk(KERN_ALERT "Updating CPU times");
+  list_for_each_entry_safe(process_entry, temp, &pid_list._head, _head){
+    if (get_cpu_use(process_entry->PID, &(process_entry->cpu_time)) == 0){
+      printk(KERN_INFO "Successfully updated cpu times");
+    } else {
+      list_del(&process_entry->_head);
+      kfree(process_entry);
+    }
+    process_entry->cpu_time = jiffies_to_msecs(cputime_to_jiffies(process_entry->cpu_time));
+    printk(KERN_INFO "PID: %d; CPU_TIME: %lu\n;", process_entry->PID, process_entry->cpu_time);
+  }
+  
+
 }
 
 
