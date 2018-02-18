@@ -61,7 +61,7 @@ static int lock =0; //acts as spin lock
 char k_buffer[2048];
 
 //file functions
-ssize_t file_write(struct file *file, char *buffer, size_t size, loff_t * data)
+ssize_t file_write(struct file *file, char *buffer, size_t count, loff_t * data)
 {
     long curr_pid=0;
 
@@ -69,8 +69,8 @@ ssize_t file_write(struct file *file, char *buffer, size_t size, loff_t * data)
     kstrtol(k_buffer, 0 , &curr_pid);
 
     struct PID_list *temp;
-    temp = kmalloc(sizeof(PID_list), GFP_KERNEL );
-    (*temp).cpu_time= (*temp).pid=0;
+    temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
+    (*temp).cpu_time= (*temp).PID=0;
 
     while(lock);
 
@@ -93,7 +93,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 
   char * pid = kmalloc(count, GFP_KERNEL);
 
-  list_for_each_entry(temp, pid_list._head, _head)
+  list_for_each_entry(temp, &pid_list._head, _head)
   {
      length= sprintf(pid + ctr, "PID= %lu, CPU Time= %lu\n", temp->PID, temp->cpu_time  );
      ctr += length;
