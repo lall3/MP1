@@ -81,7 +81,7 @@ ssize_t file_read(struct file *file, char __user * buffer, size_t count, loff_t 
 
 }
 
- static unsigned long unit_step = msecs_to_jiffies(5000);
+
 //file system struct
 //from linux channel
 static const struct file_operations mp1_file_ops = {
@@ -97,10 +97,11 @@ static const struct file_operations mp1_file_ops = {
 //functions for timer interupt handling
 void timer_function(void)
 {
+   unsigned long unit_step = msecs_to_jiffies(5000);
    mod_timer(&_timer, jiffies + unit_step);
   //schedule_work();
 
-schedule_work(&update)
+schedule_work(&update);
 /*
    if(!_workqueue)
       create_workqueue("_workqueue");
@@ -117,12 +118,12 @@ schedule_work(&update)
 void timer_init(void )
 {
    setup_timer(&_timer , timer_function ,0);
-   mod_timer(&_timer , jiffies + msecs_to_jiffies(10000) ); //might need to add jiffies
+   mod_timer(&_timer , jiffies + msecs_to_jiffies(5000) ); //might need to add jiffies
 }
 //Timer event handler. Second half
 void mykmod_work_handler(struct work_struct *pwork)
 {
-   struct process_list* temp_Node=NULL;
+   struct PID_list* temp_Node=NULL;
     while(list_mutex);//wait if mutex=1
     list_mutex=1;//lock
     list_for_each_entry(temp_Node, &pid_list._head, _head)
