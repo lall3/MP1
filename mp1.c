@@ -84,7 +84,7 @@ static const struct file_operations mp1_file_ops = {
 #define DEBUG 1
 
 //functions for timer interupt handling
-void timer_function()
+void timer_function(void)
 {
    mod_timer(&_timer, jiffies + unit_step);
   //schedule_work();
@@ -100,7 +100,7 @@ void timer_function()
 
 
 //initializing the timer
-void timer_init()
+void timer_init(void )
 {
    setup_timer(&_timer , timer_function ,0);
    mod_timer(&_timer , jiffies + msecs_to_jiffies(10000) ); //might need to add jiffies
@@ -158,7 +158,9 @@ void __exit mp1_exit(void)
    remove_proc_entry("MP1", NULL);
 
    del_timer(&_timer);
-   cleanup_list();
+   //cleanup_list();
+   flush_workqueue(_workqueue);
+   destroy_workqueue(_workqueue);
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
 }
 
