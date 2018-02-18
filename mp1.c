@@ -53,12 +53,27 @@ static list_t pidList;
 
 static struct PID_list pid_list;
 
+char * msg;
+
+//change
+void add_node_to_list(long PID) 
+{
+    struct process_list *newNode;
+    newNode = kmalloc(sizeof(struct process_list), GFP_KERNEL);
+    (*newNode).cpu_time=0;
+    (*newNode).PID=PID;          
+    while(list_mutex);//wait if mutex=1
+    list_mutex=1;//lock
+    list_add(&((*newNode).link), &(Head.link));
+    list_mutex=0;//unlock
+}
+
 //added functions for read and write
 ssize_t file_write(struct file *file, char *buf, size_t count, loff_t * data) {
    long user_PID;
   copy_from_user(msg,buf,count); 
   kstrtol(msg,0,&user_PID);
-  num_byte_from_user = (size_t)count;
+  size_t num_byte_from_user = (size_t)count;
   add_node_to_list(user_PID);
   return count;
    
@@ -74,7 +89,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
   char *pid= (char*)kmalloc(count,GFP_KERNEL);
   struct process_list *process_entry;
 
-  if((int)*offp >0){
+  if((int)*data >0){
     kfree((void*)pid);
     return 0;
   }
