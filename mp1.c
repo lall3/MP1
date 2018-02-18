@@ -64,7 +64,7 @@ void add_node_to_list(long PID)
     (*newNode).PID=PID;          
     while(list_mutex);//wait if mutex=1
     list_mutex=1;//lock
-    list_add(&((*newNode).link), &(Head.link));
+    list_add(&((*newNode).link), &(pid_list._head));
     list_mutex=0;//unlock
 }
 
@@ -96,7 +96,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 
   while(list_mutex);//wait if mutex=1
   list_mutex=1;//lock
-  list_for_each_entry(process_entry, &Head.link, link) {
+  list_for_each_entry(process_entry, &pid_list._head, link) {
 
       len=sprintf(pid+pos,"PID= %lu, CPU_time=%lu \n", process_entry->PID, process_entry->cpu_time);
       pos+= len;
@@ -105,7 +105,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
   copy_to_user(buf,pid,pos);
   kfree((void*)pid);
 
-  *offp +=pos;
+  *data +=pos;
   
 return pos;
 
