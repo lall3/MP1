@@ -14,18 +14,23 @@
 
 #include <linux/workqueue.h>
 #include <linux/string.h>
+#include <asm/uaccess.h>
 
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("lall3");
 MODULE_DESCRIPTION("CS-423 MP1");
 
+static int list_mutex =0;
 
+void mykmod_work_handler(struct work_struct *pwork);
 
 static struct proc_dir_entry* proc_mp1;
 static struct proc_dir_entry* proc_status;
 static struct workqueue_struct * _workqueue;
 
+static DECLARE_WORK(update, mykmod_work_handler);
+static struct work_struct update;
 
 static list_t list_pid;
 
@@ -89,12 +94,15 @@ void timer_function(void)
    mod_timer(&_timer, jiffies + unit_step);
   //schedule_work();
 
+schedule_work(&update)
+/*
    if(!_workqueue)
       create_workqueue("_workqueue");
 
    struct work_struct temp;
-   INIT_WORK(& temp, _worker_ );
-   queue_work(_workqueue, temp);
+   INIT_WORK(& temp, _worker_);
+   queue_work(_workqueue, &temp);
+*/
 }
 
 
@@ -104,6 +112,22 @@ void timer_init(void )
 {
    setup_timer(&_timer , timer_function ,0);
    mod_timer(&_timer , jiffies + msecs_to_jiffies(10000) ); //might need to add jiffies
+}
+//Timer event handler. Second half
+void mykmod_work_handler(struct work_struct *pwork)
+{
+   struct process_list* temp_Node=NULL;
+    while(list_mutex);//wait if mutex=1
+    list_mutex=1;//lock
+    list_for_each_entry(temp_Node, &pid_list._head, _head)
+    {   
+       if (get_cpu_use((int)(temp_Node->PID), &(temp_Node->cpu_time)) == 0){
+        printk(KERN_INFO "Successfully updated cpu times");
+       } else {
+        printk(KERN_INFO "Failed to update new times");
+      }
+    }
+    list_mutex=0;//lock
 }
 
 
