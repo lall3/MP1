@@ -58,13 +58,13 @@ char * msg;
 //change
 void add_node_to_list(long PID) 
 {
-    struct process_list *newNode;
+    struct PID_list *newNode;
     newNode = kmalloc(sizeof(struct PID_list), GFP_KERNEL);
     (*newNode).cpu_time=0;
     (*newNode).PID=PID;          
     while(list_mutex);//wait if mutex=1
     list_mutex=1;//lock
-    list_add(&((*newNode).link), &(pid_list._head));
+    list_add(&((*newNode)._head), &(pid_list._head));
     list_mutex=0;//unlock
 }
 
@@ -96,7 +96,7 @@ ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 
   while(list_mutex);//wait if mutex=1
   list_mutex=1;//lock
-  list_for_each_entry(process_entry, &pid_list._head, link) {
+  list_for_each_entry(process_entry, &pid_list._head, _head) {
 
       len=sprintf(pid+pos,"PID= %lu, CPU_time=%lu \n", process_entry->PID, process_entry->cpu_time);
       pos+= len;
