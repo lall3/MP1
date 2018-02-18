@@ -15,6 +15,7 @@
 #include <linux/workqueue.h>
 #include <linux/string.h>
 #include <asm/uaccess.h>
+#include <linux/slab.h>
 
 
 MODULE_LICENSE("GPL");
@@ -48,12 +49,12 @@ struct PID_list{
 // my timer object
 static struct timer_list _timer;
 
-
+static list_t pidList;
 
 static struct PID_list pid_list;
 
 //added functions for read and write
-ssize_t file_write(struct file *filp, char *buff, size_t len, loff_t *data) {
+ssize_t file_write(struct file *file, char __user *buffer, size_t count, loff_t * data) {
    list_t *insert_node = (list_t*)kmalloc(sizeof(list_t), GFP_KERNEL);
    char * buf = (char*)kmalloc(count, GFP_KERNEL);
    ssize_t ret = copy_from_user(buf, buffer, count);
@@ -80,7 +81,7 @@ ssize_t file_read(struct file *file, char __user * buffer, size_t count, loff_t 
 
 }
 
-unsigned long unit_step = msecs_to_jiffies(5000);
+ static unsigned long unit_step = msecs_to_jiffies(5000);
 //file system struct
 //from linux channel
 static const struct file_operations mp1_file_ops = {
