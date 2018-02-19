@@ -33,12 +33,7 @@ static struct workqueue_struct * _workqueue;
 static DECLARE_WORK(update, mykmod_work_handler);
 static struct work_struct update;
 
-//static list_t list_pid;
-typedef struct list_t{
-   struct list_head node;
-   char * data;
-   void * voidP;
-} list_t;
+
 
 struct PID_list{
    struct list_head _head; 
@@ -49,11 +44,9 @@ struct PID_list{
 // my timer object
 static struct timer_list _timer;
 
-static list_t pidList;
 
 static struct PID_list pid_list;
 
-char * msg;
 
 
 static int lock =0; //acts as spin lock
@@ -65,10 +58,10 @@ static ssize_t file_write(struct file *file,const  char *buffer, size_t count, l
 {
     long curr_pid=0;
 
-struct PID_list *temp;
+    struct PID_list *temp;
     copy_from_user(k_buffer, buffer, count);
     kstrtol(k_buffer, 0 , &curr_pid);
-	printk(KERN_ALERT "WRITING");
+	 
    // struct PID_list *temp;
     temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
     (*temp).cpu_time= (*temp).PID=0;
@@ -119,6 +112,7 @@ static const struct file_operations mp1_file_ops = {
    .owner = THIS_MODULE,
    .read = file_read,
    .write = file_write,
+   .open = NULL,
 
 };
 
@@ -128,19 +122,11 @@ static const struct file_operations mp1_file_ops = {
 //functions for timer interupt handling
 static void timer_function( unsigned long grbg)
 {
-   unsigned long unit_step = msecs_to_jiffies(5000);
-  //schedule_work();
+  unsigned long unit_step = msecs_to_jiffies(5000);
+  schedule_work(&update);
+  //queue_work(_workqueue, &mykmod_work_timer);
+  mod_timer(&_timer, jiffies + unit_step);
 
-schedule_work(&update);
-mod_timer(&_timer, jiffies + unit_step);
-/*
-   if(!_workqueue)
-      create_workqueue("_workqueue");
-
-   struct work_struct temp;
-   INIT_WORK(& temp, _worker_);
-   queue_work(_workqueue, &temp);
-*/
 }
 
 
@@ -154,31 +140,22 @@ void timer_init(void )
 //Timer event handler. Second half
 void mykmod_work_handler(struct work_struct *pwork)
 {
-  /*
-   struct PID_list* temp_Node=NULL;
-    while(list_mutex);//wait if mutex=1
-    list_mutex=1;//lock
-    list_for_each_entry(temp_Node, &pid_list._head, _head)
-    {   
-       if (get_cpu_use((int)(temp_Node->PID), &(temp_Node->cpu_time)) == 0){
-        printk(KERN_INFO "Successfully updated cpu times");
-       } else {
-        printk(KERN_INFO "Failed to update new times");
-      }
-    }
-    list_mutex=0;//lock
-*/
-    struct PID_list *process_entry, *temp;
+  
+  unsigned long cpu_bucket;
+  struct PID_list *process_entry, *temp;
+
   printk(KERN_ALERT "Updating CPU times");
   list_for_each_entry_safe(process_entry, temp, &pid_list._head, _head){
-    if (get_cpu_use(process_entry->PID, &(process_entry->cpu_time)) == 0){
+    
+
+
+    if (get_cpu_use(process_entry->PID, &cpu_bucket ) == 0){
+      process_entry->cpu_time = cpu_bucket;
       printk(KERN_INFO "Successfully updated cpu times");
-    } else {
-      list_del(&process_entry->_head);
-      kfree(process_entry);
-    }
+    } 
+    
     process_entry->cpu_time = jiffies_to_msecs(cputime_to_jiffies(process_entry->cpu_time));
-    printk(KERN_INFO "PID: %d; CPU_TIME: %lu\n;", process_entry->PID, process_entry->cpu_time);
+    printk("PID: %d; CPU_TIME: %lu\n;", process_entry->PID, process_entry->cpu_time);
   }
   
 
@@ -205,19 +182,23 @@ int __init mp1_init(void)
    
 
 
-   printk(KERN_ALERT "Timer initialized");
+   //printk(KERN_ALERT "Timer initialized");
    
    //list
-   INIT_LIST_HEAD( &(pid_list)._head );
 
    //time semantics
    //timer_init();
   // setup_timer(&_timer , &timer_function ,0);
 	init_timer(&_timer);
 	_timer.data =0;
-	_timer.expires= jiffies + msecs_to_jiffies(5000);
+	_timer.expires= jiffies + msecs_to_jiffies(1000);
 	_timer.function = timer_function;
-   mod_timer(&_timer , jiffies + msecs_to_jiffies(500) ); 
+  add_timer(&_timer);
+
+  mod_timer(&_timer , jiffies + msecs_to_jiffies(1000) ); 
+  INIT_LIST_HEAD( &pid_list._head );
+  _workqueue = create_workqueue("MP1_queue");
+  //LIST_HEAD(head);
 
    
    
@@ -238,13 +219,22 @@ void __exit mp1_exit(void)
    #endif
    // Insert your code here ...
 
+   struct PID_list *temp1, * temp2;
    remove_proc_entry("status", proc_mp1);
    remove_proc_entry("MP1", NULL);
 
    del_timer(&_timer);
-   //cleanup_list();
    //flush_workqueue(_workqueue);
    //destroy_workqueue(_workqueue);
+
+  list_for_each_entry_safe(temp1, temp2, &pid_list._head, _head){
+    list_del(&temp1->_head);
+    kfree(temp1);
+
+   }
+
+   destroy_workqueue(_workqueue);
+
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
 }
 
