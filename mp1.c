@@ -1,4 +1,3 @@
-/Mptemp
 
 #define LINUX
 
