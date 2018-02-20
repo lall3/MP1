@@ -1,258 +1,214 @@
 #define LINUX
 
+#include <linux/proc_fs.h>
+#include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include "mp1_given.h"
-
-//added inclusions
-#include <linux/timer.h>
-#include <linux/proc_fs.h>
 #include <linux/list.h>
-#include <linux/gfp.h> // flags 
-#include <linux/jiffies.h>
-#include <linux/types.h> 
-#include <linux/unistd.h>
-
-#include <linux/workqueue.h>
-#include <linux/string.h>
 #include <asm/uaccess.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/timer.h>
+#include <linux/workqueue.h>
+#include <linux/spinlock.h>
+
+
+/**
+static variables and struct
+*/
+static struct proc_dir_entry *proc_dir;
+static struct timer_list timer;
+static struct work_struct bottom_work;
+
+struct workqueue_struct *mp1_q;
+static spinlock_t mylock;
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("lall3");
+MODULE_AUTHOR("Group_10");
 MODULE_DESCRIPTION("CS-423 MP1");
 
-static int list_mutex =0;
+LIST_HEAD(head);
 
-void mykmod_work_handler(struct work_struct *pwork);
-
-static struct proc_dir_entry* proc_mp1;
-static struct proc_dir_entry* proc_status;
-static struct workqueue_struct * _workqueue;
-
-static DECLARE_WORK(update, mykmod_work_handler);
-static struct work_struct update;
-
-
-
-struct PID_list{
-   struct list_head _head; 
-   unsigned long cpu_time;
-   long PID;
+/**
+Linked list struct to store registered pid and corresponding cpt time
+*/
+struct mp1_list {
+  struct list_head list;
+  unsigned long cpu_time;
+  long pid;
 };
 
-// my timer object
-static struct timer_list _timer;
-
-
-static struct PID_list pid_list;
-
-
-
-static int lock =0; //acts as spin lock
-
-char k_buffer[2048];
-
-//file functions
-static ssize_t file_write(struct file *file,const  char *buffer, size_t count, loff_t * data)
-{
-
-//    printk(KERN_ALERT "WRITE FUNCTION REACHED");
-    unsigned long curr_pid ;
-
-char * t_buffer;
-struct PID_list *temp;
-t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
-    //struct PID_list *temp;
-    copy_from_user(t_buffer, buffer, count);
-    t_buffer [count]= '\0';
-    kstrtol(k_buffer, 0 , &curr_pid);
-   
-   // struct PID_list *temp;
-    temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
-    (*temp).cpu_time=0;
-    (*temp).PID= current -> pid;// getpid(); //task_pid_nr(current);
-
-    while(lock);
-
-    lock=1;
-    list_add( &((*temp)._head) , &(pid_list._head) );
-    lock=0;
-
-    return count;
-
-}
-
-static ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
-{
-  int length, ctr;
-  struct PID_list *temp;
-  char * pid;  
-  char read [256];
-  int offset=0;
-while(lock);
-  lock =1;
-
-  //int length, ctr;
-  ctr = length = 0;
-  //struct PID_list * temp;
-
-
-  pid =(char *)( kmalloc(2048, GFP_KERNEL));
-
-  list_for_each_entry(temp, &pid_list._head, _head)
-  {
-     length= sprintf(read, "PID= %lu, CPU Time= %lu\n", temp->PID, temp->cpu_time  );
-     ctr += length;
-     strcpy(pid+ offset, read);
-     offset= strlen(pid);
-  }
-  ctr = strlen(pid)+1;
-  copy_to_user(buf, pid,ctr);
-
-  kfree((void*)pid);
-  data += ctr;
-  lock=0;
-
-return ctr;
-}
-
-
-
-//file system struct
-//from linux channel
-static const struct file_operations mp1_file_ops = {
-   .owner = THIS_MODULE,
-   .read = file_read,
-   .write = file_write,
-
-};
-
-
+int flag = 1;
 #define DEBUG 1
 
-//functions for timer interupt handling
-static void timer_function( unsigned long grbg)
+/**
+Called when user request cpu time about registed pid
+Go through the linked list, read cpt time of each registered pid, save in the buffer for caller
+Return: number of bytes read
+*/
+static ssize_t mp1_read (struct file *file, char __user *buffer, size_t count, loff_t *data)
 {
-  unsigned long unit_step = msecs_to_jiffies(500);
-  schedule_work(&update);
-  //queue_work(_workqueue, &mykmod_work_timer);
-  mod_timer(&_timer, jiffies + unit_step);
+  printk(KERN_ALERT "read function is called!!! %d", *data);
+  if(*data>0)
+    return 0;
 
-}
+  int copied = 0;
+  char * buf;
+  struct mp1_list *entry;
+  int offset = 0;
 
-
-
-//initializing the timer
-void timer_init(void )
-{
-   setup_timer(&_timer , timer_function ,0);
-   mod_timer(&_timer , jiffies + msecs_to_jiffies(500) ); //might need to add jiffies
-}
-//Timer event handler. Second half
-void mykmod_work_handler(struct work_struct *pwork)
-{
-  
-  unsigned long cpu_bucket;
-  struct PID_list *process_entry, *temp;
-while(lock);
-lock =1;
-//  printk(KERN_ALERT "Updating CPU times");
-  list_for_each_entry_safe(process_entry, temp, &pid_list._head, _head){
-    
-//printk(KERN_ALERT "REAched here");
-
-    if ( get_cpu_use( (process_entry->PID), &cpu_bucket ) == 0)
-    {
-      process_entry->cpu_time += cpu_bucket;
-      printk(KERN_ALERT "Successfully updated cpu times");
-    } 
-    
-    process_entry->cpu_time = jiffies_to_msecs(cputime_to_jiffies(process_entry->cpu_time));
-    printk("PID: %d; CPU_TIME: %lu\n;", (int)(process_entry->PID), process_entry->cpu_time);
+  buf = (char *) kmalloc(2048,GFP_KERNEL); 
+  // critical section begin
+  spin_lock(&mylock);
+  list_for_each_entry(entry, &head, list) {
+    char temp[256];
+    sprintf(temp, "%lu: %lu ms\n", entry->pid, jiffies_to_msecs(entry->cpu_time));
+    strcpy(buf + offset, temp);
+    offset = strlen(buf);
   }
-  
-lock=0;
-
+  spin_unlock(&mylock);
+  // critical section end
+  copied = strlen(buf)+1;
+  copy_to_user(buffer, buf, copied);
+  kfree(buf);
+  printk(KERN_ALERT "READ COUNT COPIED %d\t%d\n", count, copied);
+  *data += copied;
+  return copied;
 }
 
+/**
+Called when user register pid to the linked list
+Initiate a new block and add it to the linked list
+*/
+static ssize_t mp1_write (struct file *file, const char __user *buffer, size_t count, loff_t *data)
+{
+  int copied;
+  struct mp1_list* new_node;
+  char * buf;
+  buf = (char *) kmalloc(count+1,GFP_KERNEL); 
+  copied = 0;
+  copy_from_user(buf, buffer, count);
+  buf[count] = '\0';
+  new_node  = kmalloc(sizeof(struct mp1_list), GFP_KERNEL);
 
+  if(kstrtol(buf, 10, &(new_node->pid)))
+  {
+    int i = 0;
+    while( buf[i] != '\0' )
+    {
+      printk("ERROR STR TO LONG: %x\n", *(buf+i));
+      i++;
+    }
+  }
+  printk("PID AT BEGINNING %d \n", new_node->pid);
+  printk("PID: %d\n", new_node->pid);
+  new_node->cpu_time = 1337;
+  INIT_LIST_HEAD(&new_node->list);
+  // critical section begin
+  spin_lock(&mylock);
+  list_add(&new_node->list, &head);
+  spin_unlock(&mylock);
+  // critical section end
+  printk("%d \n", ((struct mp1_list*)head.next)->cpu_time);
 
-// mp1_init - Called when module is loaded
+  kfree(buf);
+  return count;
+}
+
+/**
+Top half interrupt:
+setup up a timer for 5 seconds and put the bottom half on the workqueue
+*/
+void _timer_callback( unsigned long data )
+{
+    setup_timer( &timer, _timer_callback, 0 );
+    queue_work(mp1_q, &bottom_work);
+    mod_timer( &timer, jiffies + msecs_to_jiffies(5000) );
+}
+
+/**
+Bottom half interrupt:
+go through the linked list of registered pid and update cpu time for each
+remove the registerd pid if the job is completed
+*/
+static void bottom_fn(void *ptr)
+{
+  struct mp1_list *entry;
+  struct mp1_list *temp_entry;
+  // critical section begin
+  spin_lock(&mylock);
+  list_for_each_entry_safe(entry,temp_entry, &head, list) 
+  {
+    unsigned long cpu_value;
+    if(!get_cpu_use(entry->pid, &cpu_value))
+    {
+      //success
+      entry->cpu_time = cpu_value;
+      printk("RECORDED CPU TIME FOR PID %d: %d\n", entry->pid, jiffies_to_msecs(entry->cpu_time));
+    }
+    else  // job finished, remove from linked list 
+    {
+      list_del(&(entry->list));
+      printk("ERROR: CAN'T GET CPU USE FOR PID: %d, So this process is now being deleted\n", entry->pid);
+    }
+  }
+  spin_unlock(&mylock);
+  // critical section end
+}
+
+static const struct file_operations mp1_file = {
+  .owner = THIS_MODULE, 
+  .read = mp1_read,
+  .write = mp1_write,
+};
+
+/**
+mp1_init - Called when module is loaded
+create proc directory and file
+set up timer
+create workqueue and work struct
+*/
 int __init mp1_init(void)
 {
-   #ifdef DEBUG
-   printk(KERN_ALERT "MP1 MODULE LOADING\n");
-   #endif
-   // Insert your code here ...
+  #ifdef DEBUG
+  printk(KERN_ALERT "MP1 MODULE LOADING\n");
+  #endif
+  proc_dir =  proc_mkdir("mp1",NULL);
+  proc_create("status",0666, proc_dir, &mp1_file);  
+  spin_lock_init(&mylock);
+  setup_timer( &timer, _timer_callback, 0 ); 
+  mod_timer( &timer, jiffies + msecs_to_jiffies(5000) ); 
+  
+  mp1_q = create_workqueue("mp_queue");
+  INIT_WORK(&bottom_work, &bottom_fn);
+  printk(KERN_ALERT "MP1 MODULE LOADED\n");
 
-   //making directory
-   //proc systems
-   proc_mp1 = proc_mkdir( "MP1" ,NULL);
-   proc_status = proc_create("status", 0666, proc_mp1, &mp1_file_ops);
-
-   //error check
-   if (!proc_status)
-      return -ENOMEM;
-   
-
-
-   //printk(KERN_ALERT "Timer initialized");
-   
-   //list
-
-   //time semantics
-   //timer_init();
-  // setup_timer(&_timer , &timer_function ,0);
-  init_timer(&_timer);
-  _timer.data =0;
-  _timer.expires= jiffies + msecs_to_jiffies(1000);
-  _timer.function = timer_function;
-  add_timer(&_timer);
-
-  mod_timer(&_timer , jiffies + msecs_to_jiffies(1000) ); 
-  INIT_LIST_HEAD( &pid_list._head );
-  _workqueue = create_workqueue("MP1_queue");
-  //LIST_HEAD(_head);
-
-   
-   
-   printk(KERN_ALERT "MP1 MODULE LOADED\n");
-   return 0;   
+  return 0;   
 }
 
-
-
-
-
-
-// mp1_exit - Called when module is unloaded
+/**
+mp1_exit - Called when module is unloaded
+remove proc directory and file
+clean the linked list and free all memory used
+destroy workqueue and timer
+*/
 void __exit mp1_exit(void)
 {
-   struct PID_list *temp1, *temp2;
-   #ifdef DEBUG
-   printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
-   #endif
-   // Insert your code here ...
+  #ifdef DEBUG
+  printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
+  #endif
+  struct list_head* n = head.next; 
+  struct mp1_list* ptr;
+  remove_proc_entry("status", proc_dir);
+  remove_proc_entry("mp1", NULL);
 
-   //struct PID_list *temp1, * temp2;
-   remove_proc_entry("status", proc_mp1);
-   remove_proc_entry("MP1", NULL);
-
-   del_timer(&_timer);
-   //flush_workqueue(_workqueue);
-   //destroy_workqueue(_workqueue);
-
-  list_for_each_entry_safe(temp1, temp2, &pid_list._head, _head){
-    list_del(&temp1->_head);
-    kfree(temp1);
-
-   }
-
-   destroy_workqueue(_workqueue);
-
-   printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
+  while (n != &head) {
+    ptr = (struct mp1_list*) n;
+    n = n->next;
+    kfree(ptr);
+  }
+  del_timer( &timer );
+  destroy_workqueue(mp1_q);
+  printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
 }
 
 // Register init and exit funtions
