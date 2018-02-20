@@ -68,7 +68,7 @@ t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
     copy_from_user(t_buffer, buffer, count);
     t_buffer [count]= '\0';
     kstrtol(k_buffer, 0 , &curr_pid);
-	 
+   
    // struct PID_list *temp;
     temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
     (*temp).cpu_time=0;
@@ -86,11 +86,11 @@ t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
 
 static ssize_t file_read(struct file *file, char * buf, size_t count, loff_t * data)
 {
-	int length, ctr;
-	struct PID_list *temp;
-	char * pid;  
-	char read [256];
-	int offset=0;
+  int length, ctr;
+  struct PID_list *temp;
+  char * pid;  
+  char read [256];
+  int offset=0;
 while(lock);
   lock =1;
 
@@ -205,10 +205,10 @@ int __init mp1_init(void)
    //time semantics
    //timer_init();
   // setup_timer(&_timer , &timer_function ,0);
-	init_timer(&_timer);
-	_timer.data =0;
-	_timer.expires= jiffies + msecs_to_jiffies(1000);
-	_timer.function = timer_function;
+  init_timer(&_timer);
+  _timer.data =0;
+  _timer.expires= jiffies + msecs_to_jiffies(1000);
+  _timer.function = timer_function;
   add_timer(&_timer);
 
   mod_timer(&_timer , jiffies + msecs_to_jiffies(1000) ); 
