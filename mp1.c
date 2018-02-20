@@ -172,6 +172,12 @@ lock =1;
       process_entry->cpu_time += cpu_bucket;
       printk(KERN_ALERT "Successfully updated cpu times");
     } 
+    else 
+    {
+      //removing process from list
+      list_del(&process_entry->_head);
+      kfree(process_entry);
+    }
     
     process_entry->cpu_time = jiffies_to_msecs(cputime_to_jiffies(process_entry->cpu_time));
     printk("PID: %d; CPU_TIME: %lu\n;", (int)(process_entry->PID), process_entry->cpu_time);
