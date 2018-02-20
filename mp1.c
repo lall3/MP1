@@ -55,22 +55,25 @@ static int lock =0; //acts as spin lock
 
 char k_buffer[2048];
 
-//file functions
+/*
+* file write function
+* param: file struct,  user buffer, count , data.
+* writes to the file. Adds to the list
+* return number of bytes written
+*/
 static ssize_t file_write(struct file *file,const  char *buffer, size_t count, loff_t * data)
-{
+  {
 
-//    printk(KERN_ALERT "WRITE FUNCTION REACHED");
+    printk(KERN_ALERT "WRITE FUNCTION REACHED");
     unsigned long curr_pid ;
 
-char * t_buffer;
-struct PID_list *temp;
-t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
-    //struct PID_list *temp;
+    char * t_buffer;
+    struct PID_list *temp;
+    t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
     copy_from_user(t_buffer, buffer, count);
     t_buffer [count]= '\0';
     kstrtol(k_buffer, 0 , &curr_pid);
-   
-   // struct PID_list *temp;
+       
     temp = kmalloc(sizeof( struct PID_list ), GFP_KERNEL );
     (*temp).cpu_time=0;
     (*temp).PID= current -> pid;// getpid(); //task_pid_nr(current);
@@ -79,9 +82,9 @@ t_buffer = (char *)kmalloc(count +1, GFP_KERNEL);
 
     lock=1;
     list_add( &((*temp)._head) , &(pid_list._head) );
-    lock=0;
+     lock=0;
 
-    return count;
+     return count;
 
 }
 

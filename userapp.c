@@ -5,51 +5,48 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-void waste_time (unsigned long h)
+/*
+* factorial function
+* param: h.
+* calculates h!
+* void return type
+*/
+void faqctorial (unsigned long h)
 {
-	//if(h==0)
-	//return;
 	
 	long fact=1;
 	long i=0;
-	long m,n,b,c;
-	m=n=b=c=-9;
+	
 	while(i< h)
 	{
 		fact=fact*i;
 		i=i+1;
-		//i-=1;
-		/*while(m<h)
-		{
-			m++;
-			while(c<h)
-			{
-				c++;
-				n= m*c- n* i;
-			}
-		}*/
 	}
 
 }
+
+
+/*
+* main function
+* param: args from shell.
+* returns 0 on success
+*/
 int main(int argc, char* argv[])
 {
 	unsigned long i=50000;
 	unsigned long j=0;
-int err;	
-FILE *proc_entry_fs; 
-char str[300];
-	//int pid= getpid();
-	//printf("PID IS %d", pid);	
+	int err;	
+	FILE *proc_entry_fs; 
+	
 	while (j<i)
 	{
 		j++;
-		waste_time(j);
+		factorial(j);
 	}
 
-
+	//woeking the proc system
 	proc_entry_fs = fopen("/proc/mp1/status", "w");
 	pid_t pid= getpid();
-	err=fprintf (proc_entry_fs, "%d",pid);
 	
 
 	char * msg = (char *) malloc (2048);
